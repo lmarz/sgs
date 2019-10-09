@@ -1,5 +1,6 @@
 # SGS - Simple Git Server (WIP)
-This will be a simple git backend server
+This will be a simple git http backend server\
+See the [Git Documentation](https://git-scm.com/docs/git-http-backend) for more info
 ## Dependencies
 `git` (obviously)
 ## Compiling
