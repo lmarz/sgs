@@ -80,6 +80,43 @@ void getQueryStrings(Request* request) {
     }
 }
 
+// Extracts the headers and puts them in the request struct
+void getHeaders(Request* request, char* msg) {
+
+    // Get the length of the header
+    char* header_end = strstr(msg, "\r\n\r\n");
+    int header_length = header_end - msg;
+
+    // Copy only the header from msg
+    char* header_msg = malloc(header_length);
+    strncpy(header_msg, msg, header_length);
+
+    // Get the amount of the headers and allocate memory for them
+    request->headerCount = countChars(header_msg, '\n');
+    Header* headers = malloc(request->headerCount * sizeof(Header));
+    request->headers = headers;
+
+    // Ignore the first line
+    strtok(header_msg, "\r\n");
+
+    char* line = strtok(NULL, "\r\n");
+    for(int i = 0; i < request->headerCount; i++) {
+        // Get the name of the header
+        size_t nameLength = strcspn(line, ": ");
+        request->headers[i].name = malloc(nameLength+1);
+        memcpy(request->headers[i].name, line, nameLength);
+        request->headers[i].name[nameLength] = '\0';
+
+        // Get the value of the header
+        size_t valueLength = strlen(line) - nameLength - 2;
+        request->headers[i].value = malloc(valueLength+1);
+        memcpy(request->headers[i].value, line+nameLength+2, valueLength);
+        request->headers[i].value[valueLength] = '\0';
+
+        line = strtok(NULL, "\r\n");
+    }
+}
+
 // Free all the values, that where allocated using malloc()
 void free_request(Request request) {
     if(request.queryStringCount > 0) {
@@ -89,6 +126,11 @@ void free_request(Request request) {
         }
         free(request.queryStrings);
     }
+    for(int i = 0; i < request.headerCount; i++) {
+        free(request.headers[i].name);
+        free(request.headers[i].value);
+    }
+    free(request.headers);
 }
 
 // Handler for Ctrl+C
@@ -147,7 +189,10 @@ int main(int argc, char const *argv[]) {
         // Extract the query strings
         getQueryStrings(&request);
 
-        // TODO: extract the headers
+        // Extract the headers
+        getHeaders(&request, in_msg);
+        
+        // TODO: actually implement git functionality
 
         // Free allocated memory and close the connection to the client
         free_request(request);
