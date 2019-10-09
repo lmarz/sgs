@@ -117,6 +117,32 @@ void getHeaders(Request* request, char* msg) {
     }
 }
 
+// Extracs the body and puts it in the request struct
+void getBody(Request* request, char* msg) {
+    if(strcmp(request->method, "POST") == 0) {
+        // Get the length of the header
+        char* header_end = strstr(msg, "\r\n\r\n");
+        int header_length = header_end - msg + 4; // + \r\n\r\n
+
+        // Get the length of the body
+        for(int i = 0; i < request->headerCount; i++) {
+            if(strcmp(request->headers[i].name, "Content-Length") == 0) {
+                request->bodySize = *request->headers[i].value;
+                break;
+            }
+        }
+
+        // Allocate memory and copy body
+        request->body = malloc(request->bodySize);
+        memcpy(request->body, msg+header_length, request->bodySize);
+
+        printf("%s\n", request->body);
+    } else {
+        request->body = NULL;
+        request->bodySize = 0;
+    }
+}
+
 // Free all the values, that where allocated using malloc()
 void free_request(Request request) {
     if(request.queryStringCount > 0) {
@@ -131,6 +157,9 @@ void free_request(Request request) {
         free(request.headers[i].value);
     }
     free(request.headers);
+    if(request.bodySize > 0) {
+        free(request.body);
+    }
 }
 
 // Handler for Ctrl+C
@@ -192,6 +221,9 @@ int main(int argc, char const *argv[]) {
         // Extract the headers
         getHeaders(&request, in_msg);
         
+        // Extract the body
+        getBody(&request, in_msg);
+
         // TODO: actually implement git functionality
 
         // Free allocated memory and close the connection to the client
