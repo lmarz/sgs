@@ -4,15 +4,10 @@
 #include <string.h>
 #include <assert.h>
 #include <signal.h>
+#include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-
-// The parameters behind the ? of the uri (?name=value)
-typedef struct QueryString {
-    char* name;
-    char* value;
-} QueryString;
 
 // The Headers of the request
 typedef struct Header {
@@ -25,8 +20,7 @@ typedef struct Request {
     char* method;              // The HTTP method (GET, POST, HEAD, etc.)
     char* uri;                 // The requested URI (domain.com/file)
     char* protocol;            // The used HTTP protocol (HTTP/1.0, HTTP/1.1)
-    QueryString* queryStrings; // The query strings
-    size_t queryStringCount;   // The amount of query strings
+    char* query_string;        // The full query string
     Header* headers;           // The HTTP headers
     size_t headerCount;        // The amount of headers
     char* body;                // The body, only used on POST requsts
@@ -36,63 +30,41 @@ typedef struct Request {
 int server_socket;
 
 // A function, that counts the amount of char c in char* s
-int countChars(char* s, char c) {
-    return *s == '\0' ? 0 : countChars( s + 1, c ) + (*s == c);
+int count_chars(char* s, char c) {
+    int i = 0;
+    for (i=0; s[i]; s[i]==c ? i++ : *s++);
+    return i;
 }
 
-// Extracts the query strings and puts them in the request struct
-void getQueryStrings(Request* request) {
+// Separate the query string from the uri
+void get_query_string(Request* request) {
     // Check if there are query strings
     if(strstr(request->uri, "?") != NULL) {
         // Copy the uri and split it
         char uri[1024];
         strcpy(uri, request->uri);
-        strtok(uri, "?");
-        char* query_strings = strtok(NULL, "?");
-
-        // Get the amount of query strings and allocate memory for them
-        request->queryStringCount = countChars(query_strings, '=');
-        QueryString* queryStrings = malloc(request->queryStringCount * sizeof(QueryString));
-        request->queryStrings = queryStrings;
-
-        char* query_string = strtok(query_strings, "&");
-
-        for(int i = 0; i < request->queryStringCount; i++) {
-            // Get the name of the query string
-            size_t nameLength = strcspn(query_string, "=");
-            request->queryStrings[i].name = malloc(nameLength+1);
-            memcpy(request->queryStrings[i].name, query_string, nameLength);
-            request->queryStrings[i].name[nameLength] = '\0';
-
-            // Get the value of the query string
-            size_t valueLength = strlen(query_string) - nameLength - 1;
-            request->queryStrings[i].value = malloc(valueLength+1);
-            memcpy(request->queryStrings[i].value, query_string+nameLength+1, valueLength);
-            request->queryStrings[i].value[valueLength] = '\0';
-
-            query_string = strtok(NULL, "&");
-        }
-
+        request->uri = strtok(uri, "?");
+        request->query_string = strtok(NULL, "?");
+        // DO NOT REMOVE! SOMEHOW IT ONLY WORKS WITH THIS LINE
+        printf("%s\n", request->uri);
     } else {
-        // If there are no query strings, just fill in nothing
-        request->queryStringCount = 0;
-        request->queryStrings = NULL;
+        request->query_string = "";
     }
 }
 
 // Extracts the headers and puts them in the request struct
-void getHeaders(Request* request, char* msg) {
+void get_headers(Request* request, char* msg) {
 
     // Get the length of the header
     char* header_end = strstr(msg, "\r\n\r\n");
     int header_length = header_end - msg;
 
     // Copy only the header from msg
-    char* header_msg = malloc(header_length);
+    char header_msg[header_length+1];
     strncpy(header_msg, msg, header_length);
 
     // Get the amount of the headers and allocate memory for them
-    request->headerCount = countChars(header_msg, '\n');
+    request->headerCount = count_chars(header_msg, '\n') - 1;
     Header* headers = malloc(request->headerCount * sizeof(Header));
     request->headers = headers;
 
@@ -118,7 +90,7 @@ void getHeaders(Request* request, char* msg) {
 }
 
 // Extracs the body and puts it in the request struct
-void getBody(Request* request, char* msg) {
+void get_body(Request* request, char* msg) {
     if(strcmp(request->method, "POST") == 0) {
         // Get the length of the header
         char* header_end = strstr(msg, "\r\n\r\n");
@@ -135,8 +107,6 @@ void getBody(Request* request, char* msg) {
         // Allocate memory and copy body
         request->body = malloc(request->bodySize);
         memcpy(request->body, msg+header_length, request->bodySize);
-
-        printf("%s\n", request->body);
     } else {
         request->body = NULL;
         request->bodySize = 0;
@@ -145,13 +115,6 @@ void getBody(Request* request, char* msg) {
 
 // Free all the values, that where allocated using malloc()
 void free_request(Request request) {
-    if(request.queryStringCount > 0) {
-        for(int i = 0; i < request.queryStringCount; i++) {
-            free(request.queryStrings[i].name);
-            free(request.queryStrings[i].value);
-        }
-        free(request.queryStrings);
-    }
     for(int i = 0; i < request.headerCount; i++) {
         free(request.headers[i].name);
         free(request.headers[i].value);
@@ -159,6 +122,79 @@ void free_request(Request request) {
     free(request.headers);
     if(request.bodySize > 0) {
         free(request.body);
+    }
+}
+
+// Sends a response to the client
+void send_response(int client_socket, char* msg) {
+    // Error handling
+    if(strstr(msg, "Status: ")) {
+        char* protocol = "HTTP/1.1 ";
+        send(client_socket, protocol, strlen(protocol), 0);
+        send(client_socket, msg+8, strlen(msg+8), 0);
+    } else if(strstr(msg, "Content-Type: ")) {
+        char* status = "HTTP/1.1 200 OK\r\n";
+        send(client_socket, status, strlen(status), 0);
+        send(client_socket, msg, strlen(msg), 0);
+    }
+}
+
+// Execute git-http-backend
+void execute_git(Request request, char* response) {
+    int fd[2];
+    assert(pipe(fd) != -1);
+    pid_t pid = fork();
+    assert(pid >= 0);
+    // Child process
+    if(pid == 0) {
+        dup2(fd[0], STDIN_FILENO);
+        dup2(fd[1], STDOUT_FILENO);
+        char* args[] = {"git", "http-backend", NULL};
+        char* env[6];
+
+        // REQUEST_METHOD
+        char* request_method = malloc(strlen("REQUEST_METHOD=") + strlen(request.method));
+        strcat(request_method, "REQUEST_METHOD=");
+        strcat(request_method, request.method);
+        env[0] = request_method;
+        
+        // GIT_PROJECT_ROOT
+        env[1] = "GIT_PROJECT_ROOT=/";
+
+        // PATH_INFO
+        char* path_info = malloc(strlen("PATH_INFO=") + strlen(request.uri));
+        strcat(path_info, "PATH_INFO=");
+        strcat(path_info, request.uri);
+        env[2] = path_info;
+
+        // QUERY_STRING
+        char* query_string = malloc(strlen("QUERY_STRING=") + strlen(request.query_string));
+        strcat(query_string, "QUERY_STRING=");
+        strcat(query_string, request.query_string);
+        env[3] = query_string;
+
+        // GIT_HTTP_EXPORT_ALL
+        env[4] = "GIT_HTTP_EXPORT_ALL=1";
+
+        env[5] = NULL;
+        execve("/usr/bin/git", args, env);
+        perror("execve");
+    // Parent process
+    } else {
+
+        if(strcmp(request.method, "POST") == 0) {
+            write(fd[1], request.body, request.bodySize);
+        }
+        close(fd[1]);
+        char buf;
+        size_t response_size = 0;
+        while(read(fd[0], &buf, 1) > 0) {
+            response[response_size] = buf;
+            response_size++;
+        }
+        response[response_size] = '\0';
+        close(fd[0]);
+        wait(NULL);
     }
 }
 
@@ -216,15 +252,18 @@ int main(int argc, char const *argv[]) {
         request.protocol = strtok(NULL, " \r\n");
 
         // Extract the query strings
-        getQueryStrings(&request);
+        get_query_string(&request);
 
         // Extract the headers
-        getHeaders(&request, in_msg);
-        
-        // Extract the body
-        getBody(&request, in_msg);
+        get_headers(&request, in_msg);
 
-        // TODO: actually implement git functionality
+        // Extract the body
+        get_body(&request, in_msg);
+
+        char response[1024];
+        execute_git(request, response);
+        printf("%s\n", response);
+        send_response(client_socket, response);
 
         // Free allocated memory and close the connection to the client
         free_request(request);
