@@ -1,14 +1,11 @@
-INCLUDE=
-LIBS=
+TARGET = sgs
+OBJECTS := sgs.o
 
-all: sgs
-	@./sgs
+all: $(TARGET)
 
-sgs: sgs.o
-	@gcc -o sgs sgs.o $(LIBS)
+$(TARGET): $(OBJECTS)
 
-sgs.o: sgs.c
-	@gcc -c sgs.c -g $(INCLUDE)
+$(OBJECTS): %.o: %.c
 
 clean:
-	@rm sgs sgs.o
+	@rm $(TARGET) $(OBJECTS)
