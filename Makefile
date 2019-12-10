@@ -1,5 +1,6 @@
 TARGET = sgs
 OBJECTS := sgs.o
+OBJECTS += config.o
 
 all: $(TARGET)
 

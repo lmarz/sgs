@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <string.h>
 #include <assert.h>
 #include <signal.h>
@@ -8,6 +9,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
+#include "config.h"
 
 // The Headers of the request
 typedef struct Header {
@@ -140,7 +143,7 @@ void send_response(int client_socket, char* msg) {
 }
 
 // Execute git-http-backend
-void execute_git(Request request, char* response) {
+void execute_git(Request request, const char* repo_path, char* response) {
     int fd[2];
     assert(pipe(fd) != -1);
     pid_t pid = fork();
@@ -159,7 +162,10 @@ void execute_git(Request request, char* response) {
         env[0] = request_method;
         
         // GIT_PROJECT_ROOT
-        env[1] = "GIT_PROJECT_ROOT=/";
+        char* project_root = malloc(strlen("GIT_PROJECT_ROOT=") + strlen(repo_path));
+        strcat(project_root, "GIT_PROJECT_ROOT=");
+        strcat(project_root, repo_path);
+        env[1] = project_root;
 
         // PATH_INFO
         char* path_info = malloc(strlen("PATH_INFO=") + strlen(request.uri));
@@ -205,7 +211,20 @@ void sigintHandler(int signal) {
     exit(0);
 }
 
-int main(int argc, char const *argv[]) {
+int main(int argc, char *argv[]) {
+    
+    char* configPath = "sgs.conf";
+
+    int opt;
+    while((opt = getopt(argc, argv, "c:")) != -1) {
+        switch (opt) {
+        case 'c':
+            configPath = optarg;
+            break;
+        }
+    }
+
+    Config config = loadConfig(configPath);
     
     // Set signal handler for Ctrl+C
     signal(SIGINT, sigintHandler);
@@ -218,7 +237,7 @@ int main(int argc, char const *argv[]) {
     struct sockaddr_in server_addr;
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(5000);
+    server_addr.sin_port = htons(config.port);
 
     int ret = bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
     assert(ret >= 0);
@@ -261,7 +280,7 @@ int main(int argc, char const *argv[]) {
         get_body(&request, in_msg);
 
         char response[1024];
-        execute_git(request, response);
+        execute_git(request, config.repo_path, response);
         printf("%s\n", response);
         send_response(client_socket, response);
 
@@ -270,5 +289,6 @@ int main(int argc, char const *argv[]) {
         close(client_socket);
     }
 
+    destroyConfig(config);
     return 0;
 }
