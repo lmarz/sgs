@@ -8,5 +8,9 @@ Just run the following command:
 ```
 make
 ```
+## Usage
+```
+./sgs [-c <configfile.conf>]
+```
 ## License
 This project is licensed under the terms of the MIT license, see [LICENSE](LICENSE)
