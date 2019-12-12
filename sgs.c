@@ -156,26 +156,30 @@ void execute_git(Request request, const char* repo_path, char* response) {
         char* env[6];
 
         // REQUEST_METHOD
-        char* request_method = malloc(strlen("REQUEST_METHOD=") + strlen(request.method));
-        strcat(request_method, "REQUEST_METHOD=");
+        int request_method_len = strlen("REQUEST_METHOD=") + strlen(request.method);
+        char request_method[request_method_len];
+        memcpy(request_method, "REQUEST_METHOD=", strlen("REQUEST_METHOD=")+1);
         strcat(request_method, request.method);
         env[0] = request_method;
         
         // GIT_PROJECT_ROOT
-        char* project_root = malloc(strlen("GIT_PROJECT_ROOT=") + strlen(repo_path));
-        strcat(project_root, "GIT_PROJECT_ROOT=");
+        int project_root_len = strlen("GIT_PROJECT_ROOT=") + strlen(repo_path);
+        char project_root[project_root_len];
+        memcpy(project_root, "GIT_PROJECT_ROOT=", strlen("GIT_PROJECT_ROOT=")+1);
         strcat(project_root, repo_path);
         env[1] = project_root;
 
         // PATH_INFO
-        char* path_info = malloc(strlen("PATH_INFO=") + strlen(request.uri));
-        strcat(path_info, "PATH_INFO=");
+        int path_info_len = strlen("PATH_INFO=") + strlen(request.uri);
+        char path_info[path_info_len];
+        memcpy(path_info, "PATH_INFO=", strlen("PATH_INFO=")+1);
         strcat(path_info, request.uri);
         env[2] = path_info;
 
         // QUERY_STRING
-        char* query_string = malloc(strlen("QUERY_STRING=") + strlen(request.query_string));
-        strcat(query_string, "QUERY_STRING=");
+        int query_string_len = strlen("QUERY_STRING=") + strlen(request.query_string);
+        char query_string[query_string_len];
+        memcpy(query_string, "QUERY_STRING=", strlen("QUERY_STRING=")+1);
         strcat(query_string, request.query_string);
         env[3] = query_string;
 
