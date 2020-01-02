@@ -1,7 +1,7 @@
 #ifndef SGS_CONFIG
 #define SGS_CONFIG
 
-// The avaiable stting of the config
+// The settings of the config
 typedef struct Config {
     char* repo_path;
     int port;
