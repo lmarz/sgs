@@ -39,6 +39,26 @@ int count_chars(char* s, char c) {
     return i;
 }
 
+void get_first_line(Request* request, char* msg) {
+    char first_line[1024];
+    strcpy(first_line, msg);
+
+    size_t method_len = strcspn(first_line, " ");
+    request->method = malloc(method_len+1);
+    memcpy(request->method, first_line, method_len);
+    request->method[method_len] = '\0';
+
+    size_t uri_len = strcspn(first_line+method_len+1, " ");
+    request->uri = malloc(uri_len+1);
+    memcpy(request->uri, first_line+method_len+1, uri_len);
+    request->uri[uri_len] = '\0';
+
+    size_t proto_len = strcspn(first_line+method_len+uri_len+2, "\r\n");
+    request->protocol = malloc(proto_len+1);
+    memcpy(request->protocol, first_line+method_len+uri_len+2, proto_len);
+    request->protocol[proto_len] = '\0';
+}
+
 // Separate the query string from the uri
 void get_query_string(Request* request) {
     // Check if there are query strings
@@ -46,10 +66,17 @@ void get_query_string(Request* request) {
         // Copy the uri and split it
         char uri[1024];
         strcpy(uri, request->uri);
-        request->uri = strtok(uri, "?");
-        request->query_string = strtok(NULL, "?");
-        // DO NOT REMOVE! SOMEHOW IT ONLY WORKS WITH THIS LINE
-        printf("%s\n", request->uri);
+        free(request->uri);
+
+        size_t uri_len = strcspn(uri, "?");
+        request->uri = malloc(uri_len+1);
+        memcpy(request->uri, uri, uri_len);
+        request->uri[uri_len] = '\0';
+
+        size_t query_string_len = strlen(uri) - uri_len;
+        request->query_string = malloc(query_string_len+1);
+        memcpy(request->query_string, uri+uri_len+1, query_string_len);
+        request->query_string[query_string_len] = '\0';
     } else {
         request->query_string = "";
     }
@@ -118,6 +145,10 @@ void get_body(Request* request, char* msg) {
 
 // Free all the values, that where allocated using malloc()
 void free_request(Request request) {
+    free(request.method);
+    free(request.uri);
+    free(request.query_string);
+    free(request.protocol);
     for(int i = 0; i < request.headerCount; i++) {
         free(request.headers[i].name);
         free(request.headers[i].value);
@@ -196,15 +227,15 @@ void execute_git(Request request, const char* repo_path, char* response) {
             write(fd[1], request.body, request.bodySize);
         }
         close(fd[1]);
+        wait(NULL);
+
         char buf;
         size_t response_size = 0;
         while(read(fd[0], &buf, 1) > 0) {
             response[response_size] = buf;
             response_size++;
         }
-        response[response_size] = '\0';
         close(fd[0]);
-        wait(NULL);
     }
 }
 
@@ -264,15 +295,10 @@ int main(int argc, char *argv[]) {
         char in_msg[1024];
         size_t length = recv(client_socket, in_msg, sizeof(in_msg), 0);
 
-        // Get the method, uri and protocol
-        char first_line[1024];
-        strcpy(first_line, in_msg);
-
         Request request;
 
-        request.method = strtok(first_line, " ");
-        request.uri = strtok(NULL, " ");
-        request.protocol = strtok(NULL, " \r\n");
+        // Get the method, uri and protocol
+        get_first_line(&request, in_msg);
 
         // Extract the query strings
         get_query_string(&request);
