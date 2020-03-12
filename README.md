@@ -10,6 +10,11 @@ Just run the following command:
 make
 ```
 ## Usage
+First you need a repository. You can easily create one by calling
+```
+./setup.sh
+```
+To start the program, call
 ```
 ./sgs [-c <configfile.conf>]
 ```

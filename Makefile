@@ -1,7 +1,7 @@
 TARGET = sgs
-OBJECTS := sgs.o
-OBJECTS += config.o
-OBJECTS += request_parser.o
+
+SOURCES := $(wildcard *.c)
+OBJECTS := $(SOURCES:%.c=%.o)
 
 all: $(TARGET)
 

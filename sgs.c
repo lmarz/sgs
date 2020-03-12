@@ -121,14 +121,14 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, sigintHandler);
 
     // Create the server socket
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    server_socket = socket(AF_INET6, SOCK_STREAM, 0);
     assert(server_socket >= 0);
 
     // Bind the socket to port 5000
-    struct sockaddr_in server_addr;
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    server_addr.sin_port = htons(config.port);
+    struct sockaddr_in6 server_addr;
+    server_addr.sin6_family = AF_INET6;
+    server_addr.sin6_addr = in6addr_any;
+    server_addr.sin6_port = htons(config.port);
 
     int ret = bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
     assert(ret >= 0);
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
     ret = listen(server_socket, 1);
     assert(ret >= 0);
 
-    struct sockaddr_in client_addr;
+    struct sockaddr_in6 client_addr;
     socklen_t len = sizeof(client_addr);
 
     int client_socket;
