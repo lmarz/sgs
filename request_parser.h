@@ -18,7 +18,7 @@ typedef struct Request {
     Header* headers;           // The HTTP headers
     size_t headerCount;        // The amount of headers
     char* body;                // The body, only used on POST requsts
-    size_t bodySize;           // The size of the body
+    int bodySize;              // The size of the body
 } Request;
 
 /**

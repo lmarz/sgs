@@ -3,6 +3,8 @@ TARGET = sgs
 SOURCES := $(wildcard *.c)
 OBJECTS := $(SOURCES:%.c=%.o)
 
+CFLAGS = -g -DDEBUG
+
 all: $(TARGET)
 
 $(TARGET): $(OBJECTS)

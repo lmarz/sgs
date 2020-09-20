@@ -73,7 +73,7 @@ void get_query_string(Request* request) {
         memcpy(request->query_string, uri+uri_len+1, query_string_len);
         request->query_string[query_string_len] = '\0';
     } else {
-        request->query_string = "";
+        request->query_string = NULL;
     }
 }
 
@@ -89,7 +89,7 @@ void get_headers(Request* request, char* msg) {
     strncpy(header_msg, msg, header_length);
 
     // Get the amount of the headers and allocate memory for them
-    request->headerCount = count_chars(header_msg, '\n') - 1;
+    request->headerCount = count_chars(header_msg, '\n');
     Header* headers = malloc(request->headerCount * sizeof(Header));
     request->headers = headers;
 
@@ -124,7 +124,7 @@ void get_body(Request* request, char* msg) {
         // Get the length of the body
         for(int i = 0; i < request->headerCount; i++) {
             if(strcmp(request->headers[i].name, "Content-Length") == 0) {
-                request->bodySize = *request->headers[i].value;
+                request->bodySize = atoi(request->headers[i].value);
                 break;
             }
         }
