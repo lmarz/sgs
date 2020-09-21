@@ -68,11 +68,12 @@ void get_query_string(Request* request) {
         memcpy(request->uri, uri, uri_len);
         request->uri[uri_len] = '\0';
 
-        size_t query_string_len = strlen(uri) - uri_len;
-        request->query_string = malloc(query_string_len+1);
-        memcpy(request->query_string, uri+uri_len+1, query_string_len);
-        request->query_string[query_string_len] = '\0';
+        request->query_string_len = strlen(uri) - uri_len;
+        request->query_string = malloc(request->query_string_len+1);
+        memcpy(request->query_string, uri+uri_len+1, request->query_string_len);
+        request->query_string[request->query_string_len] = '\0';
     } else {
+        request->query_string_len = 0;
         request->query_string = NULL;
     }
 }
@@ -112,10 +113,24 @@ void get_headers(Request* request, char* msg) {
 
         line = strtok(NULL, "\r\n");
     }
+    // request->encoding = NULL;
+    // request->encoding_len = 0;
+    // for(int i = 0; i < request->headerCount; i++) {
+    //     if(strcmp(request->headers[i].name, "Accept-Encoding") == 0) {
+    //         if(strstr(request->headers[i].value, "gzip") != NULL) {
+    //             request->encoding = malloc(5);
+    //             memcpy(request->encoding, "gzip", 5);
+    //             request->encoding_len = 4;
+    //         }
+    //     }
+    // }
 }
 
 // Extracs the body and puts it in the request struct
 void get_body(Request* request, char* msg) {
+    request->content_type = NULL;
+    request->content_type_len = 0;
+
     if(strcmp(request->method, "POST") == 0) {
         // Get the length of the header
         char* header_end = strstr(msg, "\r\n\r\n");
@@ -125,7 +140,9 @@ void get_body(Request* request, char* msg) {
         for(int i = 0; i < request->headerCount; i++) {
             if(strcmp(request->headers[i].name, "Content-Length") == 0) {
                 request->bodySize = atoi(request->headers[i].value);
-                break;
+            } else if(strcmp(request->headers[i].name, "Content-Type") == 0) {
+                request->content_type = request->headers[i].value;
+                request->content_type_len = strlen(request->content_type);
             }
         }
 

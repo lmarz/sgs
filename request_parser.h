@@ -15,10 +15,15 @@ typedef struct Request {
     char* uri;                 // The requested URI (domain.com/file)
     char* protocol;            // The used HTTP protocol (HTTP/1.0, HTTP/1.1)
     char* query_string;        // The full query string
+    int query_string_len;      // The length of the query string
     Header* headers;           // The HTTP headers
     size_t headerCount;        // The amount of headers
+    // char* encoding;            // The encoding of the response
+    // int encoding_len;          // The length of the encoding
     char* body;                // The body, only used on POST requsts
     int bodySize;              // The size of the body
+    char* content_type;        // The content type of the body
+    int content_type_len;      // The length of the content type
 } Request;
 
 /**

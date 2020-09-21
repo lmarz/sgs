@@ -5,7 +5,6 @@
 #include <string.h>
 #include <assert.h>
 #include <signal.h>
-#include <time.h>
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -37,74 +36,108 @@ void send_response(int client_socket, char* msg, int response_size) {
 
 // Execute git-http-backend
 void execute_git(Request request, const char* repo_path, char* response, int* response_size) {
-    int fd[2];
-    assert(pipe(fd) != -1);
+    int ptc[2], ctp[2];
+    assert(pipe(ptc) != -1);
+    assert(pipe(ctp) != -1);
     pid_t pid = fork();
     assert(pid >= 0);
     // Child process
     if(pid == 0) {
-        dup2(fd[0], STDIN_FILENO);
-        dup2(fd[1], STDOUT_FILENO);
+        printf("Test-1\n");
+        close(ctp[0]);
+        close(ptc[1]);
+        if(dup2(ptc[0], STDIN_FILENO) == -1) {
+            perror("dup2[0]");
+            exit(1);
+        }
+        if(dup2(ctp[1], STDOUT_FILENO) == .1) {
+            perror("dup2[1]");
+            exit(1);
+        }
+        printf("Test-2\n");
         char* args[] = {"git", "http-backend", NULL};
-        char* env[6];
+        char* env[7];
 
-        // REQUEST_METHOD
-        int request_method_len = strlen("REQUEST_METHOD=") + strlen(request.method);
-        char request_method[request_method_len];
-        memcpy(request_method, "REQUEST_METHOD=", strlen("REQUEST_METHOD=")+1);
-        strcat(request_method, request.method);
-        env[0] = request_method;
-        
+        // GIT_HTTP_EXPORT_ALL
+        env[0] = "GIT_HTTP_EXPORT_ALL=1";
+        printf("%s\n", env[0]);
+
         // GIT_PROJECT_ROOT
         int project_root_len = strlen("GIT_PROJECT_ROOT=") + strlen(repo_path);
         char project_root[project_root_len];
         memcpy(project_root, "GIT_PROJECT_ROOT=", strlen("GIT_PROJECT_ROOT=")+1);
         strcat(project_root, repo_path);
         env[1] = project_root;
+        printf("%s\n", project_root);
+
+        // REQUEST_METHOD
+        int request_method_len = strlen("REQUEST_METHOD=") + strlen(request.method);
+        char request_method[request_method_len];
+        memcpy(request_method, "REQUEST_METHOD=", strlen("REQUEST_METHOD=")+1);
+        strcat(request_method, request.method);
+        env[2] = request_method;
+        printf("%s\n",request_method);
 
         // PATH_INFO
         int path_info_len = strlen("PATH_INFO=") + strlen(request.uri);
         char path_info[path_info_len];
         memcpy(path_info, "PATH_INFO=", strlen("PATH_INFO=")+1);
         strcat(path_info, request.uri);
-        env[2] = path_info;
+        env[3] = path_info;
+        printf("%s\n", path_info);
 
         // QUERY_STRING
-        int query_string_len = strlen("QUERY_STRING=") + strlen(request.query_string);
+        int query_string_len = strlen("QUERY_STRING=") + request.query_string_len;
         char query_string[query_string_len];
         memcpy(query_string, "QUERY_STRING=", strlen("QUERY_STRING=")+1);
-        strcat(query_string, request.query_string);
-        env[3] = query_string;
+        strncat(query_string, request.query_string, request.query_string_len);
+        env[4] = query_string;
+        printf("%s\n", query_string);
 
-        // GIT_HTTP_EXPORT_ALL
-        env[4] = "GIT_HTTP_EXPORT_ALL=1";
+        // CONTENT_TYPE
+        int content_type_len = strlen("CONTENT_TYPE=") + request.content_type_len;
+        char content_type[content_type_len];
+        memcpy(content_type, "CONTENT_TYPE=", strlen("CONTENT_TYPE=")+1);
+        strncat(content_type, request.content_type, request.content_type_len);
+        env[5] = content_type;
+        printf("%s\n", content_type);
+
+        // HTTP_CONTENT_ENCODING
+        // int encoding_len = strlen("HTTP_CONTENT_ENCODING=") + request.encoding_len;
+        // char encoding[encoding_len];
+        // memcpy(encoding, "HTTP_CONTENT_ENCODING=", strlen("HTTP_CONTENT_ENCODING=")+1);
+        // strncat(encoding, request.encoding, request.encoding_len);
+        // env[6] = encoding;
+        // printf("%s\n", encoding);
 
 #ifdef DEBUG
-        fprintf(logfile, "env:\n%s %s %s %s\n", request_method, project_root, path_info, query_string);
+        printf("Test\n");
+        // fprintf(logfile, "env:\n%s %s %s %s\n", request_method, project_root, path_info, query_string);
 #endif
 
-        env[5] = NULL;
+        env[6] = NULL;
         execve("/usr/bin/git", args, env);
         perror("execve");
     // Parent process
     } else {
-
+        close(ptc[0]);
+        close(ctp[1]);
         if(strcmp(request.method, "POST") == 0) {
-            write(fd[1], request.body, request.bodySize);
+            write(ptc[1], request.body, request.bodySize);
         }
-        close(fd[1]);
+        close(ptc[1]);
         wait(NULL);
 
         char buf;
         *response_size = 0;
-        while(read(fd[0], &buf, 1) > 0) {
+        while(read(ctp[0], &buf, 1) > 0) {
 #ifdef DEBUG
             fputc(buf, logfile);
 #endif
             response[*response_size] = buf;
             *response_size += 1;
         }
-        close(fd[0]);
+        close(ctp[0]);
     }
 }
 
@@ -115,7 +148,7 @@ void sigintHandler(int signal) {
 #ifdef DEBUG
     fclose(logfile);
 #endif
-    exit(0);
+    exit(1);
 }
 
 int main(int argc, char *argv[]) {
@@ -135,15 +168,13 @@ int main(int argc, char *argv[]) {
 
 #ifdef DEBUG
     logfile = fopen("sgs.log", "w");
-    time_t t = time(NULL);
-    struct tm tm = *localtime(&t);
-    fprintf(logfile, "\n\n%d:%d:%d %d.%d.%d\n\n", tm.tm_hour, tm.tm_min, tm.tm_sec, tm.tm_mday, tm.tm_mon, tm.tm_year);
 #else
     logfile = NULL;
 #endif
     
     // Set signal handler for Ctrl+C
     signal(SIGINT, sigintHandler);
+    signal(SIGSEGV, sigintHandler);
 
     // Create the server socket
     server_socket = socket(AF_INET6, SOCK_STREAM, 0);
@@ -175,7 +206,7 @@ int main(int argc, char *argv[]) {
 #ifdef DEBUG
         char address[100];
         inet_ntop(AF_INET6, &client_addr.sin6_addr, address, 100);
-        fprintf(logfile, "New connection from %s\n", client_addr);
+        fprintf(logfile, "New connection from %s\n", address);
 #endif
 
         // Recieve the request
