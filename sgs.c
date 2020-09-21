@@ -43,7 +43,6 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
     assert(pid >= 0);
     // Child process
     if(pid == 0) {
-        printf("Test-1\n");
         close(ctp[0]);
         close(ptc[1]);
         if(dup2(ptc[0], STDIN_FILENO) == -1) {
@@ -54,13 +53,14 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
             perror("dup2[1]");
             exit(1);
         }
-        printf("Test-2\n");
         char* args[] = {"git", "http-backend", NULL};
         char* env[7];
 
         // GIT_HTTP_EXPORT_ALL
         env[0] = "GIT_HTTP_EXPORT_ALL=1";
+#ifdef DEBUG
         printf("%s\n", env[0]);
+#endif
 
         // GIT_PROJECT_ROOT
         int project_root_len = strlen("GIT_PROJECT_ROOT=") + strlen(repo_path);
@@ -68,7 +68,9 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
         memcpy(project_root, "GIT_PROJECT_ROOT=", strlen("GIT_PROJECT_ROOT=")+1);
         strcat(project_root, repo_path);
         env[1] = project_root;
+#ifdef DEBUG
         printf("%s\n", project_root);
+#endif
 
         // REQUEST_METHOD
         int request_method_len = strlen("REQUEST_METHOD=") + strlen(request.method);
@@ -76,7 +78,9 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
         memcpy(request_method, "REQUEST_METHOD=", strlen("REQUEST_METHOD=")+1);
         strcat(request_method, request.method);
         env[2] = request_method;
+#ifdef DEBUG
         printf("%s\n",request_method);
+#endif
 
         // PATH_INFO
         int path_info_len = strlen("PATH_INFO=") + strlen(request.uri);
@@ -84,7 +88,9 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
         memcpy(path_info, "PATH_INFO=", strlen("PATH_INFO=")+1);
         strcat(path_info, request.uri);
         env[3] = path_info;
+#ifdef DEBUG
         printf("%s\n", path_info);
+#endif
 
         // QUERY_STRING
         int query_string_len = strlen("QUERY_STRING=") + request.query_string_len;
@@ -92,7 +98,9 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
         memcpy(query_string, "QUERY_STRING=", strlen("QUERY_STRING=")+1);
         strncat(query_string, request.query_string, request.query_string_len);
         env[4] = query_string;
+#ifdef DEBUG
         printf("%s\n", query_string);
+#endif
 
         // CONTENT_TYPE
         int content_type_len = strlen("CONTENT_TYPE=") + request.content_type_len;
@@ -100,7 +108,9 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
         memcpy(content_type, "CONTENT_TYPE=", strlen("CONTENT_TYPE=")+1);
         strncat(content_type, request.content_type, request.content_type_len);
         env[5] = content_type;
+#ifdef DEBUG
         printf("%s\n", content_type);
+#endif
 
         // HTTP_CONTENT_ENCODING
         // int encoding_len = strlen("HTTP_CONTENT_ENCODING=") + request.encoding_len;
@@ -109,11 +119,6 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
         // strncat(encoding, request.encoding, request.encoding_len);
         // env[6] = encoding;
         // printf("%s\n", encoding);
-
-#ifdef DEBUG
-        printf("Test\n");
-        // fprintf(logfile, "env:\n%s %s %s %s\n", request_method, project_root, path_info, query_string);
-#endif
 
         env[6] = NULL;
         execve("/usr/bin/git", args, env);
@@ -216,7 +221,6 @@ int main(int argc, char *argv[]) {
 #ifdef DEBUG
         fprintf(logfile, "Request:\n%s\n", in_msg);
 #endif
-        printf("Request:\n%s\n", in_msg);
         // Parse the request
         Request request = parseRequest(in_msg);
 
