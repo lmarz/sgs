@@ -24,6 +24,8 @@ typedef struct Request {
     int bodySize;              // The size of the body
     char* content_type;        // The content type of the body
     int content_type_len;      // The length of the content type
+    char* authorization;       // The authorization
+    size_t authorization_len;  // The length of the authorization
 } Request;
 
 /**

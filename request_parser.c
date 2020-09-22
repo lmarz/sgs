@@ -124,6 +124,15 @@ void get_headers(Request* request, char* msg) {
     //         }
     //     }
     // }
+    request->authorization = NULL;
+    request->authorization_len = 0;
+    for(int i = 0; i < request->headerCount; i++) {
+        if(strcmp(request->headers[i].name, "Authorization") == 0) {
+            request->authorization = request->headers[i].value;
+            request->authorization_len = strlen(request->authorization);
+            break;
+        }
+    }
 }
 
 // Extracs the body and puts it in the request struct
