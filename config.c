@@ -52,6 +52,11 @@ Config loadConfig(const char* path) {
                     fprintf(stderr, "Something's wrong with the specified port\n");
                     exit(-1);
                 }
+
+            // "git_path"
+            } else if(strcmp(name, "git_path") == 0) {
+                config.git_path = malloc(strlen(value));
+                strcpy(config.git_path, value);
             }
         }
     }
@@ -69,4 +74,5 @@ Config loadConfig(const char* path) {
 // Free all the values, that where allocated using malloc()
 void destroyConfig(Config config) {
     free(config.repo_path);
+    free(config.git_path);
 }

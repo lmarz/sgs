@@ -5,6 +5,7 @@
 typedef struct Config {
     char* repo_path;
     int port;
+    char* git_path;
 } Config;
 
 /**

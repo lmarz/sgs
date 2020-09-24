@@ -7,6 +7,7 @@
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #ifdef DEBUG
@@ -36,7 +37,7 @@ void send_response(int client_socket, char* msg, int response_size) {
 }
 
 // Execute git-http-backend
-void execute_git(Request request, const char* repo_path, char* response, int* response_size) {
+void execute_git(Request request, const char* repo_path, const char* git_path, char* response, int* response_size) {
     int ptc[2], ctp[2];
     assert(pipe(ptc) != -1);
     assert(pipe(ctp) != -1);
@@ -48,11 +49,11 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
         close(ptc[1]);
         if(dup2(ptc[0], STDIN_FILENO) == -1) {
             perror("dup2[0]");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         if(dup2(ctp[1], STDOUT_FILENO) == .1) {
             perror("dup2[1]");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
         char* args[] = {"git", "http-backend", NULL};
         char* env[8];
@@ -132,7 +133,7 @@ void execute_git(Request request, const char* repo_path, char* response, int* re
 #endif
 
         env[7] = NULL;
-        execve("/usr/bin/git", args, env);
+        execve(git_path, args, env);
         perror("execve");
     // Parent process
     } else {
@@ -164,20 +165,47 @@ void sigintHandler(int signal) {
 #ifdef DEBUG
     fclose(logfile);
 #endif
-    exit(1);
+    exit(EXIT_FAILURE);
+}
+
+void daemonize() {
+    pid_t pid;
+
+    pid = fork();
+
+    if(pid < 0)
+        exit(EXIT_FAILURE);
+    if(pid > 0)
+        exit(EXIT_SUCCESS);
+
+    if(setsid() < 0)
+        exit(EXIT_FAILURE);
+
+    signal(SIGCHLD, SIG_IGN);
+    signal(SIGHUP, SIG_IGN);
+
+    umask(0);
 }
 
 int main(int argc, char *argv[]) {
     
     char* configPath = "sgs.conf";
+    int daemon = 0;
 
     int opt;
-    while((opt = getopt(argc, argv, "c:")) != -1) {
+    while((opt = getopt(argc, argv, "dc:")) != -1) {
         switch (opt) {
+        case 'd':
+            daemon = 1;
+            break;
         case 'c':
             configPath = optarg;
             break;
         }
+    }
+
+    if(daemon) {
+        daemonize();
     }
 
     Config config = loadConfig(configPath);
@@ -239,7 +267,7 @@ int main(int argc, char *argv[]) {
             // Get the response
             char response[2048];
             int response_size;
-            execute_git(request, config.repo_path, response, &response_size);
+            execute_git(request, config.repo_path, config.git_path, response, &response_size);
 
             send_response(client_socket, response, response_size);
         }

@@ -82,14 +82,12 @@ int check_auth(Request* request, int client_socket) {
     if(request->query_string == NULL) {
         service = "";
     }
-    printf("%s\n", request->uri);
     if(strcmp(service, "service=git-receive-pack") == 0 || 
        strstr(request->uri, "git-receive-pack") != NULL) {
         if(request->authorization == NULL) {
             send_401(client_socket);
             return 0;
         } else {
-            printf("Test\n");
             size_t scheme_len = strcspn(request->authorization, " ");
             request->authorization += scheme_len+1;
             request->authorization = base64_decode(request->authorization, strlen(request->authorization), &request->authorization_len);
