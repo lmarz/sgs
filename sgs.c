@@ -23,21 +23,18 @@ int server_socket;
 FILE* logfile;
 
 // Sends a response to the client
-void send_response(int client_socket, char* msg, int response_size) {
-    // Error handling
-    if(strstr(msg, "Status: ")) {
-        char* protocol = "HTTP/1.1 ";
-        send(client_socket, protocol, strlen(protocol), 0);
-        send(client_socket, msg+8, response_size-8, 0);
-    } else if(strstr(msg, "Content-Type: ")) {
-        char* status = "HTTP/1.1 200 OK\r\n";
-        send(client_socket, status, strlen(status), 0);
-        send(client_socket, msg, response_size, 0);
-    }
+void begin_response_fail(int client_socket) {
+    char* protocol = "HTTP/1.1 ";
+    send(client_socket, protocol, strlen(protocol), 0);
+}
+
+void begin_response_success(int client_socket) {
+    char* status = "HTTP/1.1 200 OK\r\n";
+    send(client_socket, status, strlen(status), 0);
 }
 
 // Execute git-http-backend
-void execute_git(Request request, const char* repo_path, const char* git_path, char* response, int* response_size) {
+void execute_git(Request request, const char* repo_path, const char* git_path, int client_socket) {
     int ptc[2], ctp[2];
     assert(pipe(ptc) != -1);
     assert(pipe(ctp) != -1);
@@ -146,14 +143,37 @@ void execute_git(Request request, const char* repo_path, const char* git_path, c
         wait(NULL);
 
         char buf;
-        *response_size = 0;
+        char response[1024];
+        int response_size = 0;
+        int started = 0;
         while(read(ctp[0], &buf, 1) > 0) {
 #ifdef DEBUG
             fputc(buf, logfile);
 #endif
-            response[*response_size] = buf;
-            *response_size += 1;
+            response[response_size] = buf;
+            response_size += 1;
+
+            // Check if it has failed
+            if(response_size == 8 && !started) {
+                response[response_size] = '\0';
+                if(strcmp(response, "Status: ") == 0) {
+                    begin_response_fail(client_socket);
+                    started = 1;
+                    response_size = 0;
+                } else {
+                    begin_response_success(client_socket);
+                    started = 1;
+                }
+            }
+
+            // Send larger repositories
+            if(response_size == 1024) {
+                send(client_socket, response, response_size, 0);
+                response_size = 0;
+            }
         }
+
+        send(client_socket, response, response_size, 0);
         close(ctp[0]);
     }
 }
@@ -254,7 +274,7 @@ int main(int argc, char *argv[]) {
 #endif
 
         // Recieve the request
-        char in_msg[1024];
+        char in_msg[4096];
         size_t length = recv(client_socket, in_msg, sizeof(in_msg), 0);
 
 #ifdef DEBUG
@@ -265,11 +285,7 @@ int main(int argc, char *argv[]) {
 
         if(check_auth(&request, client_socket)) {
             // Get the response
-            char response[2048];
-            int response_size;
-            execute_git(request, config.repo_path, config.git_path, response, &response_size);
-
-            send_response(client_socket, response, response_size);
+            execute_git(request, config.repo_path, config.git_path, client_socket);
         }
 
         // Free allocated memory and close the connection to the client
