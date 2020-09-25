@@ -8,30 +8,15 @@
 #include <sys/wait.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#ifdef DEBUG
-#include <arpa/inet.h>
-#endif
 
 #include "config.h"
 #include "request_parser.h"
 #include "auth.h"
+#include "server.h"
 
 int server_socket;
 
 FILE* logfile;
-
-// Sends a response to the client
-void begin_response_fail(int client_socket) {
-    char* protocol = "HTTP/1.1 ";
-    send(client_socket, protocol, strlen(protocol), 0);
-}
-
-void begin_response_success(int client_socket) {
-    char* status = "HTTP/1.1 200 OK\r\n";
-    send(client_socket, status, strlen(status), 0);
-}
 
 // Execute git-http-backend
 void execute_git(Request request, const char* repo_path, const char* git_path, int client_socket) {
@@ -240,48 +225,23 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, sigintHandler);
     signal(SIGSEGV, sigintHandler);
 
-    // Create the server socket
-    server_socket = socket(AF_INET6, SOCK_STREAM, 0);
-    assert(server_socket >= 0);
-
-    // Bind the socket to port 5000
-    struct sockaddr_in6 server_addr;
-    server_addr.sin6_family = AF_INET6;
-    server_addr.sin6_addr = in6addr_any;
-    server_addr.sin6_port = htons(config.port);
-
-    int ret = bind(server_socket, (struct sockaddr*)&server_addr, sizeof(server_addr));
-    assert(ret >= 0);
-
-    // Listen on incoming connections
-    ret = listen(server_socket, 1);
-    assert(ret >= 0);
-
-    struct sockaddr_in6 client_addr;
-    socklen_t len = sizeof(client_addr);
+    server_socket = init_server(config);
 
     int client_socket;
 
     while(1) {
         // Connnect with the client
-        client_socket = accept(server_socket, (struct sockaddr*)&client_addr, &len);
-        assert(client_socket >= 0);
+        char msg[4096];
+        client_socket = get_request(server_socket, msg, 4096);
+        if(client_socket < 0) {
+            continue;
+        }
 
 #ifdef DEBUG
-        char address[100];
-        inet_ntop(AF_INET6, &client_addr.sin6_addr, address, 100);
-        fprintf(logfile, "New connection from %s\n", address);
-#endif
-
-        // Recieve the request
-        char in_msg[4096];
-        size_t length = recv(client_socket, in_msg, sizeof(in_msg), 0);
-
-#ifdef DEBUG
-        fprintf(logfile, "Request:\n%s\n", in_msg);
+        fprintf(logfile, "Request:\n%s\n", msg);
 #endif
         // Parse the request
-        Request request = parseRequest(in_msg);
+        Request request = parseRequest(msg);
 
         if(check_auth(&request, client_socket)) {
             // Get the response
@@ -292,7 +252,7 @@ int main(int argc, char *argv[]) {
         free_request(request);
         close(client_socket);
     }
-
+    close(server_socket);
     destroyConfig(config);
 #ifdef DEBUG
     fclose(logfile);

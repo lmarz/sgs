@@ -67,16 +67,6 @@ static unsigned char * base64_decode(const unsigned char *src, size_t len, size_
 	return out;
 }
 
-static void send_401(int client_socket) {
-    char* msg = "HTTP/1.1 401 Unauthorized\r\nWWW-Authenticate: Basic realm=\"sgs\"\r\n\r\n";
-    send(client_socket, msg, strlen(msg), 0);
-}
-
-static void send_403(int client_socket) {
-    char* msg = "HTTP/1.1 403 Forbidden\r\n\r\n";
-    send(client_socket, msg, strlen(msg), 0);
-}
-
 int check_auth(Request* request, int client_socket) {
     char* service = request->query_string;
     if(request->query_string == NULL) {
