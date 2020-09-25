@@ -8,6 +8,6 @@
 #include "request_parser.h"
 #include "server.h"
 
-int check_auth(Request* request, int client_socket);
+int check_auth(Request* request, SSL* ssl);
 
 #endif /* AUTH_H */

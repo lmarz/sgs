@@ -6,6 +6,8 @@ typedef struct Config {
     char* repo_path;
     int port;
     char* git_path;
+    char* tls_certfile;
+    char* tls_keyfile;
 } Config;
 
 /**

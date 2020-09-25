@@ -2,3 +2,4 @@ sgs
 *.o
 repos
 *.log
+*.pem

@@ -57,6 +57,16 @@ Config loadConfig(const char* path) {
             } else if(strcmp(name, "git_path") == 0) {
                 config.git_path = malloc(strlen(value));
                 strcpy(config.git_path, value);
+            
+            // "tls_certfile"
+            } else if(strcmp(name, "tls_certfile") == 0) {
+                config.tls_certfile = malloc(strlen(value));
+                strcpy(config.tls_certfile, value);
+
+            // "tls_keyfile"
+            } else if(strcmp(name, "tls_keyfile") == 0) {
+                config.tls_keyfile = malloc(strlen(value));
+                strcpy(config.tls_keyfile, value);
             }
         }
     }
@@ -75,4 +85,6 @@ Config loadConfig(const char* path) {
 void destroyConfig(Config config) {
     free(config.repo_path);
     free(config.git_path);
+    free(config.tls_certfile);
+    free(config.tls_keyfile);
 }

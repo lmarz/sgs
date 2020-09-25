@@ -19,7 +19,7 @@ int server_socket;
 FILE* logfile;
 
 // Execute git-http-backend
-void execute_git(Request request, const char* repo_path, const char* git_path, int client_socket) {
+void execute_git(Request request, const char* repo_path, const char* git_path, SSL* ssl) {
     int ptc[2], ctp[2];
     assert(pipe(ptc) != -1);
     assert(pipe(ctp) != -1);
@@ -142,23 +142,23 @@ void execute_git(Request request, const char* repo_path, const char* git_path, i
             if(response_size == 8 && !started) {
                 response[response_size] = '\0';
                 if(strcmp(response, "Status: ") == 0) {
-                    begin_response_fail(client_socket);
+                    begin_response_fail(ssl);
                     started = 1;
                     response_size = 0;
                 } else {
-                    begin_response_success(client_socket);
+                    begin_response_success(ssl);
                     started = 1;
                 }
             }
 
             // Send larger repositories
             if(response_size == 1024) {
-                send(client_socket, response, response_size, 0);
+                SSL_write(ssl, response, response_size);
                 response_size = 0;
             }
         }
 
-        send(client_socket, response, response_size, 0);
+        SSL_write(ssl, response, response_size);
         close(ctp[0]);
     }
 }
@@ -225,15 +225,15 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, sigintHandler);
     signal(SIGSEGV, sigintHandler);
 
-    server_socket = init_server(config);
+    server_socket = init_server(&config);
 
-    int client_socket;
+    SSL* ssl;
 
     while(1) {
         // Connnect with the client
         char msg[4096];
-        client_socket = get_request(server_socket, msg, 4096);
-        if(client_socket < 0) {
+        ssl = get_request(server_socket, msg, 4096);
+        if(ssl == NULL) {
             continue;
         }
 
@@ -243,15 +243,20 @@ int main(int argc, char *argv[]) {
         // Parse the request
         Request request = parseRequest(msg);
 
-        if(check_auth(&request, client_socket)) {
+        if(check_auth(&request, ssl)) {
             // Get the response
-            execute_git(request, config.repo_path, config.git_path, client_socket);
+            execute_git(request, config.repo_path, config.git_path, ssl);
         }
 
         // Free allocated memory and close the connection to the client
+        int cs = SSL_get_fd(ssl);
+        SSL_shutdown(ssl);
+        close(cs);
+        SSL_free(ssl);
         free_request(request);
-        close(client_socket);
     }
+
+    SSL_CTX_free(ctx);
     close(server_socket);
     destroyConfig(config);
 #ifdef DEBUG

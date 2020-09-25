@@ -67,7 +67,7 @@ static unsigned char * base64_decode(const unsigned char *src, size_t len, size_
 	return out;
 }
 
-int check_auth(Request* request, int client_socket) {
+int check_auth(Request* request, SSL* ssl) {
     char* service = request->query_string;
     if(request->query_string == NULL) {
         service = "";
@@ -75,7 +75,7 @@ int check_auth(Request* request, int client_socket) {
     if(strcmp(service, "service=git-receive-pack") == 0 || 
        strstr(request->uri, "git-receive-pack") != NULL) {
         if(request->authorization == NULL) {
-            send_401(client_socket);
+            send_401(ssl);
             return 0;
         } else {
             size_t scheme_len = strcspn(request->authorization, " ");
@@ -86,7 +86,7 @@ int check_auth(Request* request, int client_socket) {
                 request->authorization[user] = '\0';
                 return 1;
             } else {
-                send_403(client_socket);
+                send_403(ssl);
                 return 0;
             }
         }
