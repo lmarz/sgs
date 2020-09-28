@@ -226,6 +226,7 @@ int main(int argc, char *argv[]) {
     signal(SIGSEGV, sigintHandler);
 
     server_socket = init_server(&config);
+    auth_init("users");
 
     SSL* ssl;
 
@@ -256,6 +257,7 @@ int main(int argc, char *argv[]) {
         free_request(request);
     }
 
+    auth_destroy();
     SSL_CTX_free(ctx);
     close(server_socket);
     destroyConfig(config);

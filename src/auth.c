@@ -67,6 +67,31 @@ static unsigned char * base64_decode(const unsigned char *src, size_t len, size_
 	return out;
 }
 
+char* users;
+int user_amount;
+
+void auth_init(const char* filename) {
+	int fd = open(filename, O_RDONLY);
+	struct stat filesize;
+	fstat(fd, &filesize);
+	users = mmap(NULL, filesize.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+	close(fd);
+	user_amount = filesize.st_size / SHA512_DIGEST_LENGTH;
+}
+
+void auth_destroy() {
+	munmap(users, user_amount * SHA512_DIGEST_LENGTH);
+}
+
+static int compare_shas(char* sha1, char* sha2) {
+	for(int i = 0; i < SHA512_DIGEST_LENGTH; i++) {
+		if(sha1[i] != sha2[i]) {
+			return 0;
+		}
+	}
+	return 1;
+}
+/* admin:admin */
 int check_auth(Request* request, SSL* ssl) {
     char* service = request->query_string;
     if(request->query_string == NULL) {
@@ -81,14 +106,18 @@ int check_auth(Request* request, SSL* ssl) {
             size_t scheme_len = strcspn(request->authorization, " ");
             request->authorization += scheme_len+1;
             request->authorization = base64_decode(request->authorization, strlen(request->authorization), &request->authorization_len);
-            if(strcmp(request->authorization, "admin:admin") == 0) {
-                size_t user = strcspn(request->authorization, ":");
-                request->authorization[user] = '\0';
-                return 1;
-            } else {
-                send_403(ssl);
-                return 0;
-            }
+
+			char hash[SHA512_DIGEST_LENGTH];
+			SHA512(request->authorization, strlen(request->authorization), hash);
+			for(int i = 0; i < user_amount; i++) {
+				if(compare_shas(hash, users + i * SHA512_DIGEST_LENGTH)) {
+					size_t user = strcspn(request->authorization, ":");
+                	request->authorization[user] = '\0';
+                	return 1;
+				}
+			}
+            send_403(ssl);
+            return 0;
         }
     }
     return 1;
