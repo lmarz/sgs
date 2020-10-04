@@ -4,8 +4,8 @@ This will be a simple git http backend server written in C\
 See the [Git Documentation](https://git-scm.com/docs/git-http-backend) for more info
 ## Dependencies
 `git` (obviously)  
-`libssl-dev`
-`sqlite`
+`libssl-dev`  
+`libsqlite3-dev`
 ## Compiling
 Just run the following command:
 ```
