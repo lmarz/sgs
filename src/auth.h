@@ -10,6 +10,7 @@
 #include <sys/mman.h>
 #include <sys/socket.h>
 #include <openssl/sha.h>
+#include <sqlite3.h>
 
 #include "request_parser.h"
 #include "server.h"

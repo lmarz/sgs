@@ -69,18 +69,44 @@ static unsigned char * base64_decode(const unsigned char *src, size_t len, size_
 
 char* users;
 int user_amount;
+sqlite3* db;
+
+static int callback(void* not_used, int argc, char** argv, char** colname) {
+	if(!atoi(argv[0])) {
+		char* sql = "CREATE TABLE users(name TEXT, password TEXT);";
+		char* errmsg;
+		if(sqlite3_exec(db, sql, 0, 0, &errmsg) != SQLITE_OK) {
+			fprintf(stderr, "%s\n", errmsg);
+			sqlite3_close(db);
+			exit(EXIT_FAILURE);
+		}
+	}
+	return 0;
+}
 
 void auth_init(const char* filename) {
-	int fd = open(filename, O_RDONLY);
-	struct stat filesize;
-	fstat(fd, &filesize);
-	users = mmap(NULL, filesize.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-	close(fd);
-	user_amount = filesize.st_size / SHA512_DIGEST_LENGTH;
+	int rc = sqlite3_open(filename, &db);
+
+	if(rc != SQLITE_OK) {
+		fprintf(stderr, "%s\n", sqlite3_errmsg(db));
+		sqlite3_close(db);
+		exit(EXIT_FAILURE);
+	}
+
+	char* sql = "SELECT count(type) FROM sqlite_master WHERE type='table' AND name='users';";
+	char* errmsg;
+
+	rc = sqlite3_exec(db, sql, callback, 0, &errmsg);
+
+	if(rc != SQLITE_OK) {
+		fprintf(stderr, "%s\n", errmsg);
+		sqlite3_close(db);
+		exit(EXIT_FAILURE);
+	}
 }
 
 void auth_destroy() {
-	munmap(users, user_amount * SHA512_DIGEST_LENGTH);
+	sqlite3_close(db);
 }
 
 static int compare_shas(char* sha1, char* sha2) {
@@ -107,17 +133,41 @@ int check_auth(Request* request, SSL* ssl) {
             request->authorization += scheme_len+1;
             request->authorization = base64_decode(request->authorization, strlen(request->authorization), &request->authorization_len);
 
-			char hash[SHA512_DIGEST_LENGTH];
-			SHA512(request->authorization, strlen(request->authorization), hash);
-			for(int i = 0; i < user_amount; i++) {
-				if(compare_shas(hash, users + i * SHA512_DIGEST_LENGTH)) {
-					size_t user = strcspn(request->authorization, ":");
-                	request->authorization[user] = '\0';
-                	return 1;
+			size_t user = strcspn(request->authorization, ":");
+
+			char* sql = "SELECT password FROM users WHERE name = ?";
+			sqlite3_stmt* res;
+			int rc = sqlite3_prepare_v2(db, sql, -1, &res, 0);
+			if(rc == SQLITE_OK) {
+				sqlite3_bind_text(res, 1, request->authorization, user, 0);
+			} else {
+				fprintf(stderr, "Failed to prepare statement\n");
+				send_500(ssl);
+				return 0;
+			}
+
+			int step = sqlite3_step(res);
+			if(step == SQLITE_ROW) {
+				const unsigned char* dbpassword = sqlite3_column_text(res, 0);
+
+				char* password = request->authorization+user+1;
+				unsigned char hash[SHA512_DIGEST_LENGTH];
+				char readable[SHA512_DIGEST_LENGTH*2+1];
+				SHA512(password, strlen(password), hash);
+				for(int i = 0; i < SHA512_DIGEST_LENGTH; i++) {
+					sprintf(readable+i*2, "%02x", hash[i]);
+				}
+				readable[SHA512_DIGEST_LENGTH*2+1] = '\0';
+
+				if(strcmp(dbpassword, readable) == 0) {
+					request->authorization[user] = '\0';
+					sqlite3_finalize(res);
+					return 1;
 				}
 			}
-            send_403(ssl);
-            return 0;
+			send_403(ssl);
+			sqlite3_finalize(res);
+			return 0;
         }
     }
     return 1;

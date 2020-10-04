@@ -226,7 +226,7 @@ int main(int argc, char *argv[]) {
     signal(SIGSEGV, sigintHandler);
 
     server_socket = init_server(&config);
-    auth_init("users");
+    auth_init("users.db");
 
     SSL* ssl;
 

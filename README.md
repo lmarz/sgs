@@ -5,6 +5,7 @@ See the [Git Documentation](https://git-scm.com/docs/git-http-backend) for more 
 ## Dependencies
 `git` (obviously)  
 `libssl-dev`
+`sqlite`
 ## Compiling
 Just run the following command:
 ```

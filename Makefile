@@ -4,7 +4,7 @@ SOURCES := $(wildcard src/*.c)
 OBJECTS := $(SOURCES:%.c=%.o)
 
 CFLAGS = -g -DDEBUG
-LDLIBS = -lssl -lcrypto
+LDLIBS = -lssl -lcrypto -lsqlite3
 
 all: $(TARGET)
 
