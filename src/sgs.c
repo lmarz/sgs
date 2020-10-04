@@ -193,6 +193,14 @@ void daemonize() {
 }
 
 int main(int argc, char *argv[]) {
+
+    if(argc == 4) {
+        if(strcmp(argv[1], "-a") == 0) {
+            auth_init("users.db");
+            add_user(argv[2], argv[3]);
+            exit(EXIT_SUCCESS);
+        }
+    }
     
     char* configPath = "sgs.conf";
     int daemon = 0;

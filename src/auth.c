@@ -109,14 +109,13 @@ void auth_destroy() {
 	sqlite3_close(db);
 }
 
-static int compare_shas(char* sha1, char* sha2) {
+static void hash_to_string(unsigned char hash[SHA512_DIGEST_LENGTH], char output[SHA512_DIGEST_LENGTH*2+1]) {
 	for(int i = 0; i < SHA512_DIGEST_LENGTH; i++) {
-		if(sha1[i] != sha2[i]) {
-			return 0;
-		}
+		sprintf(output+i*2, "%02x", hash[i]);
 	}
-	return 1;
+	output[SHA512_DIGEST_LENGTH*2+1] = '\0';
 }
+
 /* admin:admin */
 int check_auth(Request* request, SSL* ssl) {
     char* service = request->query_string;
@@ -153,11 +152,9 @@ int check_auth(Request* request, SSL* ssl) {
 				char* password = request->authorization+user+1;
 				unsigned char hash[SHA512_DIGEST_LENGTH];
 				char readable[SHA512_DIGEST_LENGTH*2+1];
+
 				SHA512(password, strlen(password), hash);
-				for(int i = 0; i < SHA512_DIGEST_LENGTH; i++) {
-					sprintf(readable+i*2, "%02x", hash[i]);
-				}
-				readable[SHA512_DIGEST_LENGTH*2+1] = '\0';
+				hash_to_string(hash, readable);
 
 				if(strcmp(dbpassword, readable) == 0) {
 					request->authorization[user] = '\0';
@@ -171,4 +168,48 @@ int check_auth(Request* request, SSL* ssl) {
         }
     }
     return 1;
+}
+
+void add_user(const char* user, const char* password) {
+	char* sql = "GET name FROM users WHERE name = ?";
+	sqlite3_stmt* res;
+	if(sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+		fprintf(stderr, "Couldn't prepare statement\n");
+		auth_destroy();
+		exit(EXIT_FAILURE);
+	}
+
+	sqlite3_bind_text(res, 1, user, -1, NULL);
+
+	int step = sqlite3_step(res);
+	if(step == SQLITE_ROW) {
+		fprintf(stderr, "User already exists\n");
+		auth_destroy();
+		exit(EXIT_FAILURE);
+	}
+	sqlite3_finalize(res);
+
+	unsigned char hash[SHA512_DIGEST_LENGTH];
+	SHA512(password, strlen(password), hash);
+	char pw[SHA512_DIGEST_LENGTH*2+1];
+	hash_to_string(hash, pw);
+
+	sql = "INSERT INTO users VALUES(?1, ?2);";
+	if(sqlite3_prepare_v2(db, sql, -1, &res, 0) != SQLITE_OK) {
+		fprintf(stderr, "Couldn't prepare statement\n");
+		auth_destroy();
+		exit(EXIT_FAILURE);
+	}
+
+	sqlite3_bind_text(res, 1, user, -1, 0);
+	sqlite3_bind_text(res, 2, pw, -1, 0);
+
+	int step = sqlite3_step(res);
+	if(step != SQLITE_DONE) {
+		fprintf(stderr, "Couldn't add user to database\n");
+		auth_destroy();
+		exit(EXIT_FAILURE);
+	}
+	sqlite3_finalize(res);
+	auth_destroy();
 }

@@ -18,5 +18,6 @@
 void auth_init(const char* filename);
 void auth_destroy();
 int check_auth(Request* request, SSL* ssl);
+void add_user(const char* user, const char* password);
 
 #endif /* AUTH_H */

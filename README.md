@@ -34,6 +34,7 @@ To start the program, call
 ```
 ```
 Options:
+    -a <user> <password> Add a user with push access
     -c <configfile.conf> The path to the config. If not specified, it will default to sgs.conf
     -d                   Run the program in the background
 ```
