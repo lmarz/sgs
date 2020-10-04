@@ -21,5 +21,6 @@ void begin_response_success(SSL* ssl);
 void begin_response_fail(SSL* ssl);
 void send_401(SSL* ssl);
 void send_403(SSL* ssl);
+void send_500(SSL* ssl);
 
 #endif /* SERVER_H */

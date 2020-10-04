@@ -113,3 +113,8 @@ void send_403(SSL* ssl) {
     char* msg = "HTTP/1.1 403 Forbidden\r\n\r\n";
     SSL_write(ssl, msg, strlen(msg));
 }
+
+void send_500(SSL* ssl) {
+    char* msg = "HTTP/1.1 500 Internal Server Error\r\n\r\n";
+    SSL_write(ssl, msg, strlen(msg));
+}
