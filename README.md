@@ -1,4 +1,6 @@
 # SGS - Simple Git Server (WIP)
+**This project moved to https://sr.ht/~lmarz/sgs**
+
 Linux only\
 This will be a simple git http backend server written in C\
 See the [Git Documentation](https://git-scm.com/docs/git-http-backend) for more info
